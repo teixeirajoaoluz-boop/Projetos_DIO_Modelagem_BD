@@ -1,0 +1,236 @@
+-- =====================================================================
+-- CRIAÇÃO DO BANCO
+-- =====================================================================
+CREATE DATABASE IF NOT EXISTS ecommerce_db
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_unicode_ci;
+
+USE ecommerce_db;
+
+-- =====================================================================
+-- TABELAS DE CLIENTE (GENERALIZAÇÃO / ESPECIALIZAÇÃO PF / PJ)
+-- =====================================================================
+
+CREATE TABLE Cliente (
+  idCliente INT AUTO_INCREMENT,
+  endereco VARCHAR(45) NOT NULL,
+  dataNascimento DATE NULL,
+  PRIMARY KEY (idCliente)
+) ENGINE=InnoDB;
+
+CREATE TABLE ClientePF (
+  idCliente INT,
+  Pnome VARCHAR(10) NOT NULL,
+  Nome_do_meio VARCHAR(10) NULL,
+  Sobrenome VARCHAR(20) NOT NULL,
+  CPF CHAR(11) NOT NULL,
+  PRIMARY KEY (idCliente),
+  UNIQUE KEY uk_cliente_pf_cpf (CPF),
+  CONSTRAINT fk_clientepf_cliente
+    FOREIGN KEY (idCliente) REFERENCES Cliente(idCliente)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE ClientePJ (
+  idCliente INT,
+  RazaoSocial VARCHAR(45) NOT NULL,
+  CNPJ CHAR(15) NOT NULL,
+  PRIMARY KEY (idCliente),
+  UNIQUE KEY uk_clientepj_cnpj (CNPJ),
+  CONSTRAINT fk_clientepj_cliente
+    FOREIGN KEY (idCliente) REFERENCES Cliente(idCliente)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- =====================================================================
+-- FORNECEDOR
+-- =====================================================================
+
+CREATE TABLE Fornecedor (
+  idFornecedor INT AUTO_INCREMENT,
+  RazaoSocial VARCHAR(45) NOT NULL,
+  CNPJ CHAR(15) NOT NULL,
+  contato VARCHAR(45) NULL,
+  PRIMARY KEY (idFornecedor),
+  UNIQUE KEY uk_fornecedor_cnpj (CNPJ),
+  UNIQUE KEY uk_fornecedor_razao (RazaoSocial)
+) ENGINE=InnoDB;
+
+-- =====================================================================
+-- TERCEIRO / VENDEDOR
+-- =====================================================================
+
+CREATE TABLE Terceiro_Vendedor (
+  idTerceiro INT AUTO_INCREMENT,
+  RazaoSocial VARCHAR(45) NOT NULL,
+  Local VARCHAR(45) NULL,
+  NomeFantasia VARCHAR(45) NULL,
+  CNPJ CHAR(15) NULL,
+  CPF CHAR(11) NULL,
+  PRIMARY KEY (idTerceiro),
+  UNIQUE KEY uk_terceiro_cnpj (CNPJ),
+  UNIQUE KEY uk_terceiro_cpf (CPF),
+  UNIQUE KEY uk_terceiro_razao (RazaoSocial)
+) ENGINE=InnoDB;
+
+-- =====================================================================
+-- PRODUTO
+-- =====================================================================
+
+CREATE TABLE Produto (
+  idProduto INT AUTO_INCREMENT,
+  Categoria VARCHAR(45) NOT NULL,
+  Descricao VARCHAR(45) NOT NULL,
+  Valor DECIMAL(10,2) NOT NULL,
+  PRIMARY KEY (idProduto)
+) ENGINE=InnoDB;
+
+-- =====================================================================
+-- ESTOQUE E LOCALIZAÇÃO DE PRODUTO
+-- =====================================================================
+
+CREATE TABLE Estoque (
+  idEstoque INT AUTO_INCREMENT,
+  Local VARCHAR(45) NOT NULL,
+  Quantidade INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (idEstoque)
+) ENGINE=InnoDB;
+
+CREATE TABLE Produto_em_Estoque (
+  Produto_idProduto INT NOT NULL,
+  Estoque_idEstoque INT NOT NULL,
+  Localizacao VARCHAR(45) NULL,
+  PRIMARY KEY (Produto_idProduto, Estoque_idEstoque),
+  CONSTRAINT fk_prod_estoque_produto
+    FOREIGN KEY (Produto_idProduto) REFERENCES Produto(idProduto)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT fk_prod_estoque_estoque
+    FOREIGN KEY (Estoque_idEstoque) REFERENCES Estoque(idEstoque)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- =====================================================================
+-- RELACIONAMENTO PRODUTO x FORNECEDOR (N:N)
+-- =====================================================================
+
+CREATE TABLE Produto_fornecedor (
+  Fornecedor_idFornecedor INT NOT NULL,
+  Produto_idProduto INT NOT NULL,
+  Quantidade INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (Fornecedor_idFornecedor, Produto_idProduto),
+  CONSTRAINT fk_prod_fornecedor_fornecedor
+    FOREIGN KEY (Fornecedor_idFornecedor) REFERENCES Fornecedor(idFornecedor)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT fk_prod_fornecedor_produto
+    FOREIGN KEY (Produto_idProduto) REFERENCES Produto(idProduto)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- =====================================================================
+-- RELACIONAMENTO PRODUTO x VENDEDOR TERCEIRO (N:N)
+-- =====================================================================
+
+CREATE TABLE Produtos_vendedor (
+  idSeller INT NOT NULL,
+  Produto_idProduto INT NOT NULL,
+  Quantidade INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (idSeller, Produto_idProduto),
+  CONSTRAINT fk_prod_vendedor_terceiro
+    FOREIGN KEY (idSeller) REFERENCES Terceiro_Vendedor(idTerceiro)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT fk_prod_vendedor_produto
+    FOREIGN KEY (Produto_idProduto) REFERENCES Produto(idProduto)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- =====================================================================
+-- PEDIDO
+-- =====================================================================
+
+CREATE TABLE Pedido (
+  idPedido INT AUTO_INCREMENT,
+  StatusPedido ENUM('PENDENTE','PROCESSANDO','ENVIADO','ENTREGUE','CANCELADO') NOT NULL DEFAULT 'PENDENTE',
+  Descricao VARCHAR(45) NULL,
+  Cliente_idCliente INT NOT NULL,
+  Frete DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (idPedido),
+  KEY idx_pedido_cliente (Cliente_idCliente),
+  CONSTRAINT fk_pedido_cliente
+    FOREIGN KEY (Cliente_idCliente) REFERENCES Cliente(idCliente)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- =====================================================================
+-- ITENS DO PEDIDO (PRODUTO x PEDIDO)
+-- =====================================================================
+
+CREATE TABLE Produto_pedido (
+  Produto_idProduto INT NOT NULL,
+  Pedido_idPedido INT NOT NULL,
+  Quantidade INT NOT NULL,
+  Status ENUM('RESERVADO','SEPARADO','ENVIADO','CANCELADO') NOT NULL DEFAULT 'RESERVADO',
+  PRIMARY KEY (Produto_idProduto, Pedido_idPedido),
+  CONSTRAINT fk_prod_pedido_produto
+    FOREIGN KEY (Produto_idProduto) REFERENCES Produto(idProduto)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE,
+  CONSTRAINT fk_prod_pedido_pedido
+    FOREIGN KEY (Pedido_idPedido) REFERENCES Pedido(idPedido)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- =====================================================================
+-- PAGAMENTO (N FORMAS POR PEDIDO)
+-- =====================================================================
+
+CREATE TABLE Pagamento (
+  idPagamento INT AUTO_INCREMENT,
+  tipoPagamento ENUM('CARTAO_CREDITO','BOLETO','PIX','TRANSFERENCIA') NOT NULL,
+  detalhes VARCHAR(100) NULL,
+  PRIMARY KEY (idPagamento)
+) ENGINE=InnoDB;
+
+CREATE TABLE Pedido_Pagamento (
+  idPedido INT NOT NULL,
+  idPagamento INT NOT NULL,
+  PRIMARY KEY (idPedido, idPagamento),
+  CONSTRAINT fk_pedido_pag_pedido
+    FOREIGN KEY (idPedido) REFERENCES Pedido(idPedido)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT fk_pedido_pag_pagamento
+    FOREIGN KEY (idPagamento) REFERENCES Pagamento(idPagamento)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- =====================================================================
+-- ENTREGA (1:1 COM PEDIDO)
+-- =====================================================================
+
+CREATE TABLE Entrega (
+  idEntrega INT AUTO_INCREMENT,
+  idPedido INT NOT NULL,
+  statusEntrega ENUM('EM_PREPARACAO','ENVIADO','EM_TRANSITO','ENTREGUE','CANCELADO') NOT NULL DEFAULT 'EM_PREPARACAO',
+  codigoRastreio VARCHAR(30) NULL,
+  PRIMARY KEY (idEntrega),
+  UNIQUE KEY uk_entrega_pedido (idPedido),
+  CONSTRAINT fk_entrega_pedido
+    FOREIGN KEY (idPedido) REFERENCES Pedido(idPedido)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- =====================================================================
+-- FIM DO SCRIPT
+-- =====================================================================
